@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id            String       @id @default(uuid())
+  rfc           String
+  razonSocial   String
+  email         String?
+  calle         String?
+  colonia       String?
+  municipio     String?
+  estado        String?
+  pais          String?       @default("MEXICO")
+  codigoPostal  String?
+  telefono      String?
+  limiteCredito Decimal       @default(0) @db.Decimal(12, 2)
+  diasCredito   Int           @default(0)
+  saldo         Decimal       @default(0) @db.Decimal(12, 2)
+  vendedorId    String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  userId        String?
+  storeId       String
+  store         Store        @relation(fields: [storeId], references: [id])
+  user          User?        @relation(fields: [userId], references: [id])
+  invoices      Invoice[]
+  quotes        Quote[]
+  receivables   Receivable[]
+
+  @@unique([storeId, rfc])
+  @@map("customers")
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  uuid            String        @unique
+  serie           String?
+  folio           String?
+  fechaEmision    DateTime
+  total           Decimal       @db.Decimal(10, 2)
+  subtotal        Decimal       @db.Decimal(10, 2)
+  moneda          String        @default("MXN")
+  tipoComprobante String?
+  customerId      String
+  xmlPath         String?
+  processedAt     DateTime      @default(now())
+  isFiscal        Boolean       @default(true)
+  status          String?
+  userId          String?
+  storeId         String
+  items           InvoiceItem[]
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  store           Store         @relation(fields: [storeId], references: [id])
+  user            User?         @relation(fields: [userId], references: [id])
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id            String  @id @default(uuid())
+  invoiceId     String
+  cantidad      Decimal @db.Decimal(10, 2)
+  unidad        String?
+  descripcion   String
+  valorUnitario Decimal @db.Decimal(10, 2)
+  importe       Decimal @db.Decimal(10, 2)
+  invoice       Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model Product {
+  id           String    @id @default(uuid())
+  sku          String
+  description  String
+  line         String?
+  stock        Decimal   @default(0) @db.Decimal(10, 4)
+  price        Decimal   @default(0) @db.Decimal(10, 2)
+  lastSync     DateTime  @default(now())
+  lastPurchase DateTime?
+  lastSale     DateTime?
+  claveSat     String?
+  unidadSat    String?
+  costoPromedio Decimal   @default(0) @db.Decimal(10, 2)
+  costoUltimo   Decimal   @default(0) @db.Decimal(10, 2)
+  unidadMedida  String?   @default("PZA")
+  peso          Decimal   @default(0) @db.Decimal(10, 3)
+  stockMin      Decimal   @default(0) @db.Decimal(10, 2)
+  stockMax      Decimal   @default(0) @db.Decimal(10, 2)
+  iva          Decimal   @default(0.16) @db.Decimal(5, 4)
+  ieps         Decimal   @default(0) @db.Decimal(5, 4)
+  retencionIva Decimal   @default(0) @db.Decimal(5, 4)
+  retencionIsr Decimal   @default(0) @db.Decimal(5, 4)
+  userId       String?
+  storeId      String
+  store        Store     @relation(fields: [storeId], references: [id])
+  user         User?     @relation(fields: [userId], references: [id])
+
+  @@unique([storeId, sku])
+  @@map("products")
+}
+
+model Quote {
+  id              String        @id @default(uuid())
+  folio           String?
+  fechaEmision    DateTime      @default(now())
+  vigencia        DateTime?
+  subtotal        Decimal       @db.Decimal(10, 2)
+  total           Decimal       @db.Decimal(10, 2)
+  moneda          String        @default("MXN")
+  status          String        @default("BORRADOR")
+  customerId      String
+  invoiceId       String?
+  userId          String?
+  storeId         String
+  items           QuoteItem[]
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  store           Store         @relation(fields: [storeId], references: [id])
+  user            User?         @relation(fields: [userId], references: [id])
+
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id            String  @id @default(uuid())
+  quoteId       String
+  cantidad      Decimal @db.Decimal(10, 2)
+  unidad        String?
+  descripcion   String
+  valorUnitario Decimal @db.Decimal(10, 2)
+  importe       Decimal @db.Decimal(10, 2)
+  sku           String?
+  quote         Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("quote_items")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  module      String
+  action      String
+  entityId    String?
+  description String
+  metadata    Json?
+  timestamp   DateTime @default(now())
+  userId      String?
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model AssociatedDocument {
+  id             String    @id @default(uuid())
+  filename       String
+  filePath       String
+  uuid           String?
+  serie          String?
+  folio          String?
+  fecha          DateTime?
+  rfcEmisor      String?
+  nombreEmisor   String?
+  rfcReceptor    String?
+  nombreReceptor String?
+  total          Decimal?  @db.Decimal(15, 2)
+  tipoDoc        String?
+  createdAt      DateTime  @default(now())
+  userId         String?
+  storeId        String
+  store          Store     @relation(fields: [storeId], references: [id])
+  user           User?     @relation(fields: [userId], references: [id])
+
+  @@unique([storeId, filePath])
+  @@unique([storeId, uuid])
+  @@map("associated_documents")
+}
+
+model Receivable {
+  id               String    @id @default(uuid())
+  customerId       String
+  folio            String
+  fechaEmision     DateTime
+  fechaVencimiento DateTime
+  importeOriginal  Decimal   @db.Decimal(10, 2)
+  saldo            Decimal   @db.Decimal(10, 2)
+  estatus          String    @default("PENDIENTE")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  userId           String?
+  storeId          String
+  payments         Payment[]
+  customer         Customer  @relation(fields: [customerId], references: [id])
+  store            Store     @relation(fields: [storeId], references: [id])
+  user             User?     @relation(fields: [userId], references: [id])
+
+  @@map("receivables")
+}
+
+model Payment {
+  id           String     @id @default(uuid())
+  receivableId String
+  fecha        DateTime   @default(now())
+  importe      Decimal    @db.Decimal(10, 2)
+  concepto     String?
+  metodoPago   String?
+  createdAt    DateTime   @default(now())
+  receivable   Receivable @relation(fields: [receivableId], references: [id])
+
+  @@map("payments")
+}
+
+model Supplier {
+  id           String        @id @default(uuid())
+  rfc          String
+  razonSocial  String
+  direccion    String?
+  telefono     String?
+  email        String?
+  contacto     String?
+  diasCredito  Int           @default(0)
+  limiteCredito Decimal      @default(0) @db.Decimal(12, 2)
+  saldo        Decimal       @default(0) @db.Decimal(12, 2)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  userId       String?
+  storeId      String
+  purchases    Purchase[]
+  store        Store         @relation(fields: [storeId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+
+  @@unique([storeId, rfc])
+  @@map("suppliers")
+}
+
+model Purchase {
+  id              String         @id @default(uuid())
+  supplierId      String
+  folio           String?
+  referencia      String?        // Factura del proveedor
+  fecha           DateTime
+  fechaRecepcion  DateTime?
+  total           Decimal        @db.Decimal(12, 2)
+  subtotal        Decimal        @db.Decimal(12, 2)
+  moneda          String         @default("MXN")
+  status          String         @default("CERRADA") // EN_PROCESO, CERRADA, CANCELADA
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  userId          String?
+  storeId         String
+  items           PurchaseItem[]
+  supplier        Supplier       @relation(fields: [supplierId], references: [id])
+  store           Store          @relation(fields: [storeId], references: [id])
+  user            User?          @relation(fields: [userId], references: [id])
+
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id            String   @id @default(uuid())
+  purchaseId    String
+  sku           String?  // Puede ser opcional si es material directo
+  descripcion   String
+  cantidad      Decimal  @db.Decimal(10, 4)
+  unidad        String?
+  costo         Decimal  @db.Decimal(10, 2)
+  importe       Decimal  @db.Decimal(12, 2)
+  purchase      Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_items")
+}
+
+model InventoryMovement {
+  id            String   @id @default(uuid())
+  sku           String
+  tipoMovimiento String   // 'E' Entrada, 'S' Salida
+  concepto      String?  // 'COMPRA', 'VENTA', 'AJUSTE', 'MERMA'
+  cantidad      Decimal  @db.Decimal(10, 4)
+  costo         Decimal  @db.Decimal(10, 2)
+  fecha         DateTime @default(now())
+  referencia    String?  // ID de Factura o Compra
+  userId        String?
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id])
+  user          User?    @relation(fields: [userId], references: [id])
+  // No hay relación estricta con Product para permitir histórico de items borrados
+
+  @@map("inventory_movements")
+}
+
+model User {
+  id          String               @id @default(uuid())
+  name        String?
+  email       String?              @unique
+  password    String?
+  role        String               @default("USER")
+  image       String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  storeId     String
+  documents   AssociatedDocument[]
+  auditLogs   AuditLog[]
+  customers   Customer[]
+  invoices    Invoice[]
+  quotes      Quote[]
+  products    Product[]
+  receivables Receivable[]
+  suppliers   Supplier[]
+  purchases   Purchase[]
+  inventoryMovements InventoryMovement[]
+  store       Store                @relation(fields: [storeId], references: [id])
+
+  @@map("users")
+}
+
+model Store {
+  id          String               @id @default(uuid())
+  name        String
+  rfc         String?
+  address     String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  documents   AssociatedDocument[]
+  auditLogs   AuditLog[]
+  customers   Customer[]
+  invoices    Invoice[]
+  quotes      Quote[]
+  products    Product[]
+  receivables Receivable[]
+  suppliers   Supplier[]
+  purchases   Purchase[]
+  inventoryMovements InventoryMovement[]
+  users       User[]
+
+  @@map("stores")
+}

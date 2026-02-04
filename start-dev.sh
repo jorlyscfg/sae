@@ -1,0 +1,337 @@
+#!/bin/bash
+
+# Script para iniciar el entorno de desarrollo de VapesWay Next-Gen
+# Next.js App en puerto 3005
+
+echo "🚀 Iniciando entorno de desarrollo VapesWay..."
+echo "📍 App: http://localhost:3005"
+echo ""
+
+# Función para matar procesos al salir (limpieza completa)
+cleanup() {
+    echo ""
+    echo "🛑 Deteniendo servicios y eliminando procesos huérfanos..."
+
+    # Terminar cloudflared si existe
+    if [ ! -z "${CLOUDFLARED_PID:-}" ]; then
+        echo "   ☁️ Deteniendo túnel de Cloudflare..."
+        kill -9 $CLOUDFLARED_PID 2>/dev/null || true
+    fi
+
+    # Terminar el proceso tee si existe
+    if [ ! -z "${TEE_PID:-}" ]; then
+        kill -9 $TEE_PID 2>/dev/null || true
+    fi
+
+    # Limpieza específica solo de procesos del proyecto
+    echo "   🎯 Eliminando procesos Next.js del proyecto..."
+
+    # Solo matar procesos en el puerto 3005
+    lsof -ti:3005 2>/dev/null | xargs kill -9 2>/dev/null || true
+
+    # Buscar procesos next dev solo en este directorio específico
+    pkill -9 -f "next dev.*3005" 2>/dev/null || true
+    pkill -9 -f "next-server.*3005" 2>/dev/null || true
+
+    # Matar cloudflared
+    pkill -9 -f "cloudflared.*3005" 2>/dev/null || true
+
+    # Matar procesos npm del directorio actual
+    NPM_PIDS=$(ps aux | grep "npm.*run.*dev" | grep -v grep | awk '{print $2}')
+    for pid in $NPM_PIDS; do
+        if [ -d "/proc/$pid" ]; then
+            PWD_DIR=$(pwdx $pid 2>/dev/null | awk '{print $2}')
+            if [ "$PWD_DIR" = "/root/development/vapesway-next-gen" ]; then
+                kill -9 $pid 2>/dev/null || true
+            fi
+        fi
+    done
+
+    # Esperar terminación completa
+    sleep 2
+
+    echo "✅ Todos los servicios y procesos huérfanos eliminados"
+    exit 0
+}
+
+# Función para obtener el comando correcto de Docker Compose
+get_docker_compose_cmd() {
+    if docker compose version >/dev/null 2>&1; then
+        echo "docker compose"
+        return 0
+    elif command -v docker-compose >/dev/null 2>&1; then
+        echo "docker-compose"
+        return 0
+    elif [ -f "/tmp/docker-compose" ]; then
+        echo "/tmp/docker-compose"
+        return 0
+    else
+        echo "   ⚠️  No se encontró docker compose ni docker-compose." >&2
+        echo "   📥 Descargando docker-compose standalone (latest)..." >&2
+        curl -sL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /tmp/docker-compose
+        chmod +x /tmp/docker-compose
+        echo "/tmp/docker-compose"
+        return 0
+    fi
+}
+
+# Configurar trap para cleanup
+trap cleanup SIGINT SIGTERM
+
+# Verificar que estamos en el directorio correcto
+if [ ! -f "package.json" ]; then
+    echo "❌ Error: Ejecutar desde el directorio raíz del proyecto"
+    exit 1
+fi
+
+# Verificar y arrancar servicios Docker
+if [ -f "../docker-compose.yml" ]; then
+    echo "🐳 Verificando servicios Docker..."
+    
+    # Obtener el comando correcto de docker compose
+    DOCKER_COMPOSE_CMD=$(get_docker_compose_cmd)
+    
+    if ! $DOCKER_COMPOSE_CMD ps | grep -q "Up"; then
+        echo "   🚀 Iniciando base de datos y servicios..."
+        $DOCKER_COMPOSE_CMD up -d
+    else
+        echo "   ✅ Servicios Docker activos"
+    fi
+    echo ""
+fi
+
+# Verificar que node_modules existe
+if [ ! -d "node_modules" ]; then
+    echo "📦 Instalando dependencias..."
+    npm install
+fi
+
+# Verificar archivo .env
+if [ ! -f ".env" ]; then
+    echo "⚠️  Advertencia: No se encontró archivo .env"
+    echo "   Asegúrate de tener configuradas las variables de entorno de Supabase"
+fi
+
+# Limpiar procesos existentes y liberar puerto 3005
+echo "🧹 Limpiando procesos existentes y eliminando huérfanos..."
+
+# Función helper para matar todo lo que ocupe el puerto 3005
+kill_port_3005() {
+    # Intento 1: lsof
+    PIDS=$(lsof -ti:3005 2>/dev/null)
+    if [ ! -z "$PIDS" ]; then
+        echo "   🔫 Matando PIDs en 3005 (lsof): $PIDS"
+        kill -9 $PIDS 2>/dev/null || true
+    fi
+
+    # Intento 2: ss (más confiable para detectar puertos en LISTEN)
+    SS_PIDS=$(ss -tulpn 2>/dev/null | grep ":3005 " | grep -oP 'pid=\K[0-9]+' | sort -u)
+    if [ ! -z "$SS_PIDS" ]; then
+        echo "   🔫 Matando PIDs en 3005 (ss): $SS_PIDS"
+        for pid in $SS_PIDS; do
+            kill -9 $pid 2>/dev/null || true
+        done
+    fi
+
+    # Intento 3: fuser (si existe)
+    if command -v fuser >/dev/null 2>&1; then
+        fuser -k -9 3005/tcp >/dev/null 2>&1 || true
+    fi
+
+    # Intento 4: Buscar procesos next-server que estén en este directorio
+    NEXT_PIDS=$(ps aux | grep "next-server" | grep -v grep | awk '{print $2}')
+    for pid in $NEXT_PIDS; do
+        # Verificar si el proceso está en el directorio del proyecto
+        if [ -d "/proc/$pid" ]; then
+            PWD_DIR=$(pwdx $pid 2>/dev/null | awk '{print $2}')
+            if [ "$PWD_DIR" = "/root/development/vapesway-next-gen" ]; then
+                echo "   🔫 Matando next-server en directorio del proyecto: $pid"
+                kill -9 $pid 2>/dev/null || true
+            fi
+        fi
+    done
+}
+
+echo "🔍 Liberando puerto 3005..."
+MAX_ATTEMPTS=10
+attempt=1
+
+# Función para verificar si el puerto está ocupado
+puerto_ocupado() {
+    # Verificar con lsof
+    if lsof -i:3005 >/dev/null 2>&1; then
+        return 0
+    fi
+    # Verificar con ss (más confiable)
+    if ss -tulpn 2>/dev/null | grep -q ":3005 "; then
+        return 0
+    fi
+    return 1
+}
+
+while [ $attempt -le $MAX_ATTEMPTS ]; do
+    if ! puerto_ocupado; then
+        echo "✅ Puerto 3005 libre."
+        break
+    fi
+
+    echo "   ⚠️ Puerto 3005 ocupado (Intento $attempt/$MAX_ATTEMPTS). Limpiando..."
+    kill_port_3005
+
+    # Limpieza complementaria solo del puerto específico
+    pkill -9 -f "next dev.*3005" 2>/dev/null || true
+    pkill -9 -f "next-server.*3005" 2>/dev/null || true
+
+    sleep 2
+    attempt=$((attempt + 1))
+done
+
+if puerto_ocupado; then
+    echo "❌ ERROR CRÍTICO: No se pudo liberar el puerto 3005 después de varios intentos."
+    echo "   Procesos encontrados con lsof:"
+    lsof -i:3005 2>/dev/null || echo "   (ninguno)"
+    echo "   Procesos encontrados con ss:"
+    ss -tulpn 2>/dev/null | grep ":3005 " || echo "   (ninguno)"
+    exit 1
+fi
+
+echo "✅ Puerto 3005 verificado y libre."
+
+# Limpiar log anterior
+rm -f /tmp/vapesway-dev.log
+
+# Iniciar Next.js INMEDIATAMENTE sin más esperas
+echo "🔧 Iniciando servidor Next.js..."
+echo ""
+
+# Usar tee para mostrar logs en terminal Y guardarlos en archivo
+PORT=3005 NODE_ENV=development npm run dev 2>&1 | tee /tmp/vapesway-dev.log &
+TEE_PID=$!
+
+# Esperar un poco para que npm inicie
+sleep 2
+
+# Buscar el PID real de npm/node
+NPM_PID=$(pgrep -f "npm.*run.*dev" | head -1)
+
+# Esperar y verificar que la app inicie correctamente
+echo ""
+echo "🔍 Verificando Next.js..."
+RETRIES=20
+FOUND=false
+
+for i in $(seq 1 $RETRIES); do
+    sleep 2
+
+    # Verificar si el puerto está siendo usado (con lsof o ss)
+    if lsof -i:3005 >/dev/null 2>&1 || ss -tulpn 2>/dev/null | grep -q ":3005 "; then
+        echo "✅ Next.js corriendo en puerto 3005"
+        FOUND=true
+        break
+    fi
+
+    # Verificar si tee sigue vivo (si murió, npm también murió)
+    if ! kill -0 $TEE_PID 2>/dev/null; then
+        echo "❌ Error: El proceso de Next.js murió prematuramente"
+        echo "📋 Últimas líneas del log:"
+        tail -20 /tmp/vapesway-dev.log 2>/dev/null || echo "No se pudo leer el log"
+        exit 1
+    fi
+
+    echo "   ⏳ Esperando a que Next.js inicie... ($i/$RETRIES)"
+done
+
+if [ "$FOUND" = false ]; then
+    echo "❌ Error: Next.js no responde en puerto 3005 después de $((RETRIES * 2)) segundos"
+    echo "📋 Últimas líneas del log:"
+    tail -30 /tmp/vapesway-dev.log 2>/dev/null || echo "No se pudo leer el log"
+    kill $TEE_PID 2>/dev/null
+    exit 1
+fi
+
+echo ""
+echo "🎉 Entorno de desarrollo iniciado correctamente!"
+echo ""
+
+# Iniciar túnel de Cloudflare para acceso HTTPS desde cualquier dispositivo
+echo "☁️  Iniciando túnel de Cloudflare (HTTPS)..."
+
+# Verificar si existe túnel con nombre configurado
+if [ -f ".cloudflared-tunnel-name" ] && [ -f "$HOME/.cloudflared/config.yml" ]; then
+    TUNNEL_NAME=$(cat .cloudflared-tunnel-name)
+    echo "   ✅ Usando túnel permanente: $TUNNEL_NAME"
+
+    # Usar cloudflared instalado globalmente si existe, sino usar el de /tmp
+    if [ -f "/usr/local/bin/cloudflared" ]; then
+        CLOUDFLARED_BIN="/usr/local/bin/cloudflared"
+    else
+        CLOUDFLARED_BIN="/tmp/cloudflared"
+        if [ ! -f "$CLOUDFLARED_BIN" ]; then
+            echo "   📥 Descargando cloudflared..."
+            curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared 2>/dev/null
+            chmod +x /tmp/cloudflared
+        fi
+    fi
+
+    # Iniciar túnel con nombre (URL fija)
+    $CLOUDFLARED_BIN tunnel run $TUNNEL_NAME > /tmp/cloudflare-tunnel.log 2>&1 &
+    CLOUDFLARED_PID=$!
+
+    # URL fija conocida
+    HTTPS_URL="https://$TUNNEL_NAME.cfargotunnel.com"
+    sleep 3
+
+else
+    # No hay túnel configurado, usar túnel temporal (URL aleatoria)
+    echo "   💡 Usando túnel temporal (URL aleatoria)"
+    echo "   ℹ️  Para URL fija, ejecuta: ./setup-cloudflare-tunnel.sh"
+
+    # Descargar cloudflared si no existe
+    if [ ! -f "/tmp/cloudflared" ]; then
+        echo "   📥 Descargando cloudflared..."
+        curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared 2>/dev/null
+        chmod +x /tmp/cloudflared
+    fi
+
+    # Iniciar cloudflared en background
+    /tmp/cloudflared tunnel --url http://localhost:3005 > /tmp/cloudflare-tunnel.log 2>&1 &
+    CLOUDFLARED_PID=$!
+
+    # Esperar a que el túnel se establezca y obtener la URL
+    echo "   ⏳ Esperando URL del túnel..."
+    HTTPS_URL=""
+    for i in {1..15}; do
+        sleep 2
+        HTTPS_URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflare-tunnel.log 2>/dev/null | head -1)
+        if [ ! -z "$HTTPS_URL" ]; then
+            break
+        fi
+    done
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "✅ Servidor listo para probar desde cualquier dispositivo:"
+echo ""
+echo "   🌐 Local:       http://localhost:3005"
+if [ ! -z "$HTTPS_URL" ]; then
+    echo "   🔒 HTTPS:       $HTTPS_URL"
+    echo ""
+    echo "   📱 Usa la URL HTTPS para:"
+    echo "      - Probar desde móviles y tablets"
+    echo "      - Funciones que requieren HTTPS (cámara, geolocalización, etc.)"
+    echo "      - Compartir con el equipo de desarrollo"
+else
+    echo "   ⚠️  No se pudo obtener la URL HTTPS del túnel"
+    echo "      Verifica /tmp/cloudflare-tunnel.log para más detalles"
+fi
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "📋 Logs visibles en esta terminal y guardados en: /tmp/vapesway-dev.log"
+echo "💡 Para detener el servicio, presiona Ctrl+C"
+echo ""
+
+# Esperar a que tee termine (cuando el usuario presione Ctrl+C)
+wait $TEE_PID
