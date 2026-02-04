@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      # La URL de conexión debe ser provista por Dokploy/Variables de Entorno
+      # Formato: postgresql://user:pass@host:port/db_name?schema=public
+      - DATABASE_URL=${DATABASE_URL}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_TRUST_HOST=true
+      
+      # Opcional: Si necesitas conectar a una DB en el host (fuera del bridge)
+      # - DB_HOST=host.docker.internal
+
+    # Healthcheck para asegurar que la app levanta
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/auth/session"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
