@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     ports:
-      - "3000:3000"
+      - "3012:3000"
     environment:
       # La URL de conexión debe ser provista por Dokploy/Variables de Entorno
       # Formato: postgresql://user:pass@host:port/db_name?schema=public
