@@ -15,7 +15,7 @@ export default async function CobranzaPage({
 
     return (
         <ReceivablesClient
-            initialData={initialData.success ? initialData.data : []}
+            initialData={initialData.success ? (initialData.data ?? []) : []}
             summary={initialData.success ? initialData.summary : { totalPortfolio: 0 }}
         />
     );
