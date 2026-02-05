@@ -14,9 +14,9 @@ FB_CONFIG = {
 
 # Configuración Postgres
 PG_CONFIG = {
-    'dbname': 'aspel_dashboard',
-    'user': 'postgres',
-    'password': 'password123',
+    'dbname': 'sae_unified',
+    'user': 'dokploy',
+    'password': 'amukds4wi9001583845717ad2',
     'host': 'localhost',
     'port': 5432
 }
@@ -51,7 +51,7 @@ def migrate_suppliers():
     # Usually: CLAVE, NOMBRE, RFC, CALLE, COLONIA, POBLA (Municipio?), ESTADO, TELEFONO, ...
     
     query = """
-        SELECT CLAVE, NOMBRE, RFC, CALLE, COLONIA, POBLA, ESTADO, TELEFONO, MAIL, CONTACTO, DIASCRED, LIMCRED
+        SELECT CLAVE, NOMBRE, RFC, CALLE, COLONIA, MUNICIPIO, ESTADO, TELEFONO, MAIL, DIASCRED, LIMCRED
         FROM PROV01
     """
     try:
@@ -81,11 +81,15 @@ def migrate_suppliers():
     """
     
     suppliers_data = []
+    seen_rfcs = set()
     
     for row in rows:
         clave = str(row[0]).strip()
         nombre = str(row[1]).strip() if row[1] else f"Proveedor {clave}"
         raw_rfc = str(row[2]).strip() if row[2] else 'XAXX010101000'
+        # Unique RFC by appending CLAVE
+        raw_rfc = raw_rfc.replace(" ", "")
+        raw_rfc = f"{raw_rfc}_{clave}"
         
         calle = str(row[3]).strip() if row[3] else ''
         colonia = str(row[4]).strip() if row[4] else ''
@@ -96,16 +100,22 @@ def migrate_suppliers():
         
         telefono = str(row[7]).strip() if row[7] else None
         email = str(row[8]).strip() if row[8] else None
-        contacto = str(row[9]).strip() if row[9] else None
+        contacto = None # Column CONTACTO not found in PROV01
         
-        dias_cred = int(row[10]) if row[10] is not None else 0
-        lim_cred = row[11] if row[11] is not None else 0.0
+        dias_cred = int(row[9]) if row[9] is not None else 0
+        lim_cred = row[10] if row[10] is not None else 0.0
 
         # Unique RFC per store. Need compound if duplicates exist?
         # Usually suppliers have unique RFC. If duplicate, we upsert on first.
         # But to be safe like Customers, we might need a mapping strategy.
         # For now, let's assume RFC is primary key enough or we use UUID.
         # If we have duplicate RFCs, the upsert will overwrite.
+        
+        # Dedup RFC
+        if raw_rfc in seen_rfcs:
+            print(f"⚠️ RFC duplicado omitido: {raw_rfc} ({nombre})")
+            continue
+        seen_rfcs.add(raw_rfc)
         
         suppliers_data.append((
             str(uuid.uuid4()),

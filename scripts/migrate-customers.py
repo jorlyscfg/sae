@@ -14,9 +14,9 @@ FB_CONFIG = {
 
 # Configuración Postgres
 PG_CONFIG = {
-    'dbname': 'aspel_dashboard',
-    'user': 'postgres',
-    'password': 'password123',
+    'dbname': 'sae_unified',
+    'user': 'dokploy',
+    'password': 'amukds4wi9001583845717ad2',
     'host': 'localhost',
     'port': 5432
 }

@@ -1,17 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, FileText, Edit2, Trash2, Plus, Search } from 'lucide-react';
+import { Mail, FileText, Edit2, Trash2, Plus, Search, Store } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import CustomerFormModal from '@/components/CustomerFormModal';
 import { deleteCustomer } from '@/app/actions/customers';
+import { promoteToBranch } from '@/app/actions/branch-actions';
 
 interface Customer {
     id: string;
     rfc: string;
     razonSocial: string;
     email: string | null;
+    isBranch: boolean;
     createdAt: Date;
     _count: {
         invoices: number;
@@ -57,6 +59,14 @@ export default function CustomersClient({ customers, searchQuery }: { customers:
         setIsDeleting(id);
         const result = await deleteCustomer(id);
         setIsDeleting(null);
+        if (!result.success) {
+            alert(result.error);
+        }
+    };
+
+    const handlePromote = async (id: string, name: string) => {
+        if (!confirm(`¿Convertir a "${name}" en Sucursal?\n\nEsto creará un inventario independiente para este cliente.`)) return;
+        const result = await promoteToBranch(id);
         if (!result.success) {
             alert(result.error);
         }
@@ -133,7 +143,14 @@ export default function CustomersClient({ customers, searchQuery }: { customers:
                                 .map((cust) => (
                                     <tr key={cust.id} className="data-table-tr hover-row cursor-pointer group">
                                         <td className="data-table-td">
-                                            <div style={{ fontWeight: 600 }}>{cust.razonSocial}</div>
+                                            <div style={{ fontWeight: 600 }}>
+                                                {cust.razonSocial}
+                                                {cust.isBranch && (
+                                                    <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-purple-900 text-purple-200 border border-purple-700">
+                                                        Sucursal
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div className="text-muted" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{cust.rfc}</div>
                                         </td>
                                         <td className="data-table-td">
@@ -161,6 +178,18 @@ export default function CustomersClient({ customers, searchQuery }: { customers:
                                                 >
                                                     <Edit2 size={16} />
                                                 </Link>
+                                                {!cust.isBranch && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handlePromote(cust.id, cust.razonSocial);
+                                                        }}
+                                                        className="action-btn action-btn-view text-purple-400 hover:text-purple-300"
+                                                        title="Convertir en Sucursal"
+                                                    >
+                                                        <Store size={16} />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => handleDelete(cust.id)}
                                                     className="action-btn action-btn-delete"

@@ -30,6 +30,11 @@ model Customer {
   storeId       String
   store         Store        @relation(fields: [storeId], references: [id])
   user          User?        @relation(fields: [userId], references: [id])
+  
+  // Branch Logic
+  isBranch      Boolean      @default(false)
+  linkedStoreId String?
+  
   invoices      Invoice[]
   quotes        Quote[]
   receivables   Receivable[]

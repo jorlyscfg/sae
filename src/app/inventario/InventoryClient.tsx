@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Package, AlertTriangle, Edit2, Trash2, Plus, ArrowUp, ArrowDown, Search, ExternalLink } from 'lucide-react';
+import { Package, AlertTriangle, Edit2, Trash2, Plus, ArrowUp, ArrowDown, Search, ExternalLink, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import ProductFormModal from '@/components/ProductFormModal';
+import TransferStockModal from '@/components/TransferStockModal';
 import ClientDate from '@/components/ClientDate';
 import { deleteProduct } from '@/app/actions/products';
 
@@ -33,7 +34,9 @@ interface InventoryClientProps {
 
 export default function InventoryClient({ products, currentSort, currentOrder, filters, searchQuery }: InventoryClientProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+    const [productToTransfer, setProductToTransfer] = useState<Product | null>(null);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState(searchQuery);
 
@@ -90,6 +93,11 @@ export default function InventoryClient({ products, currentSort, currentOrder, f
     const handleCreate = () => {
         setProductToEdit(null);
         setIsModalOpen(true);
+    };
+
+    const handleTransfer = (product: Product) => {
+        setProductToTransfer(product);
+        setIsTransferModalOpen(true);
     };
 
     const handleDelete = async (id: string) => {
@@ -216,6 +224,13 @@ export default function InventoryClient({ products, currentSort, currentOrder, f
                                             >
                                                 <Edit2 size={16} />
                                             </button>
+                                            <button
+                                                onClick={() => handleTransfer(prod)}
+                                                className="action-btn action-btn-view text-purple-400 hover:text-purple-300"
+                                                title="Transferir a Sucursal"
+                                            >
+                                                <Truck size={16} />
+                                            </button>
                                             <Link
                                                 href={`/inventario/${prod.id}`}
                                                 className="action-btn action-btn-view"
@@ -236,6 +251,12 @@ export default function InventoryClient({ products, currentSort, currentOrder, f
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 productToEdit={productToEdit}
+            />
+
+            <TransferStockModal
+                isOpen={isTransferModalOpen}
+                onClose={() => setIsTransferModalOpen(false)}
+                productToTransfer={productToTransfer}
             />
         </div>
     );
