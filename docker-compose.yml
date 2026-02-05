@@ -14,6 +14,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - AUTH_SECRET=${AUTH_SECRET}
       - AUTH_TRUST_HOST=true
+      - AUTH_URL=${AUTH_URL}
       
       # Opcional: Si necesitas conectar a una DB en el host (fuera del bridge)
       # - DB_HOST=host.docker.internal
