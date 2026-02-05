@@ -21,6 +21,15 @@ services:
     networks:
       - dokploy-network
 
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.app.loadbalancer.server.port=3000"
+      - "traefik.http.routers.app-http.rule=Host(`sae.jegdev.com`)"
+      - "traefik.http.routers.app-http.entrypoints=web"
+      - "traefik.http.routers.app-https.rule=Host(`sae.jegdev.com`)"
+      - "traefik.http.routers.app-https.entrypoints=websecure"
+      - "traefik.http.routers.app-https.tls.certresolver=letsencrypt"
+
     # Healthcheck para asegurar que la app levanta
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/auth/session"]
