@@ -18,9 +18,16 @@ services:
       # Opcional: Si necesitas conectar a una DB en el host (fuera del bridge)
       # - DB_HOST=host.docker.internal
 
+    networks:
+      - dokploy-network
+
     # Healthcheck para asegurar que la app levanta
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/auth/session"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+networks:
+  dokploy-network:
+    external: true
