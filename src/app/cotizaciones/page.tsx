@@ -17,8 +17,8 @@ export default async function QuotesPage({
 
     return (
         <QuotesClient
-            initialData={quotesData.success ? quotesData.data : []}
-            customers={customersData.success ? customersData.data : []}
+            initialData={quotesData.success ? (quotesData.data ?? []) : []}
+            customers={customersData.success ? (customersData.data ?? []) : []}
         />
     );
 }
