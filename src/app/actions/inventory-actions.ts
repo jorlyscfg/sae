@@ -20,14 +20,11 @@ export async function getBranchCustomers() {
     return await prisma.customer.findMany({
         where: {
             storeId,
-            // Allow selecting ANY customer, not just existing branches
-            // isBranch: true, 
+            id: { not: storeId }, // Exclude self if user is a Customer-Store
         },
         select: {
             id: true,
             razonSocial: true,
-            linkedStoreId: true,
-            isBranch: true // Select to show badge in UI if needed
         },
         orderBy: { razonSocial: 'asc' }
     });
@@ -50,37 +47,30 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
         // 1. Validate Target
         const targetCustomer = await prisma.customer.findUnique({
             where: { id: targetCustomerId },
-            select: { isBranch: true, linkedStoreId: true, razonSocial: true }
+            select: { id: true, razonSocial: true, rfc: true }
         });
 
         if (!targetCustomer) {
             return { success: false, error: 'Cliente destino no encontrado' };
         }
 
-        let destinationStoreId = targetCustomer.linkedStoreId;
+        // ONE LOGIC: The Customer ID IS the Store ID.
+        // We ensure the Store entity exists with the SAME ID as the Customer.
+        const destinationStoreId = targetCustomer.id;
 
-        // Auto-Promote Logic: If customer is not a branch yet, make it one!
-        if (!destinationStoreId) {
-            console.log(`[Transfer] Auto-promoting customer ${targetCustomer.razonSocial} to Branch...`);
+        const storeExists = await prisma.store.findUnique({
+            where: { id: destinationStoreId }
+        });
 
-            // 1. Create new Store
-            const newStore = await prisma.store.create({
+        if (!storeExists) {
+            console.log(`[Transfer] Ensuring Store entity for Customer ${targetCustomer.razonSocial} (${destinationStoreId})...`);
+            await prisma.store.create({
                 data: {
-                    name: `Sucursal - ${targetCustomer.razonSocial}`,
-                    // Inherit address if available, or empty
+                    id: destinationStoreId, // CRITICAL: Use SAME ID
+                    name: targetCustomer.razonSocial,
+                    rfc: targetCustomer.rfc
                 }
             });
-
-            // 2. Link Customer to Store
-            await prisma.customer.update({
-                where: { id: targetCustomerId },
-                data: {
-                    isBranch: true,
-                    linkedStoreId: newStore.id
-                }
-            });
-
-            destinationStoreId = newStore.id;
         }
 
         // 2. Transaction
