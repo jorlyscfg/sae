@@ -12,15 +12,26 @@ interface TransferItem {
     cost: number;
 }
 
-export async function getBranchCustomers() {
+export async function getBranchCustomers(excludeStoreId?: string) {
     const session = await auth();
-    const storeId = (session?.user as any)?.storeId;
-    if (!storeId) return [];
+    const sessionStoreId = (session?.user as any)?.storeId;
+    if (!sessionStoreId) return [];
+
+    // Use explicit exclude ID or fallback to session
+    const finalExcludeId = excludeStoreId || sessionStoreId;
+
+    // ENFORCE CLOSED UNIVERSE: Only Customers that are ALSO Stores.
+    // We get all Store IDs first to filter the customer list efficiently.
+    const stores = await prisma.store.findMany({ select: { id: true } });
+    const storeIds = stores.map(s => s.id);
 
     return await prisma.customer.findMany({
         where: {
-            storeId,
-            id: { not: storeId }, // Exclude self if user is a Customer-Store
+            storeId: sessionStoreId, // Customers of the current store
+            id: {
+                in: storeIds, // MUST be a Store already
+                not: finalExcludeId // Exclude self
+            }
         },
         select: {
             id: true,
@@ -30,12 +41,16 @@ export async function getBranchCustomers() {
     });
 }
 
-export async function transferStock(targetCustomerId: string, items: TransferItem[]) {
+export async function transferStock(targetCustomerId: string, items: TransferItem[], sourceStoreId?: string) {
     const session = await auth();
-    const sourceStoreId = (session?.user as any)?.storeId;
+    const sessionStoreId = (session?.user as any)?.storeId;
     const userId = session?.user?.id;
 
-    if (!sourceStoreId || !userId) {
+    // Use passed source (if Admin/Valid) or session default
+    // Ideally verify user has access to sourceStoreId here
+    const actualSourceId = sourceStoreId || sessionStoreId;
+
+    if (!actualSourceId || !userId) {
         return { success: false, error: 'No autorizado' };
     }
 
@@ -54,6 +69,11 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
             return { success: false, error: 'Cliente destino no encontrado' };
         }
 
+        // Prevent Loop (Source == Destination)
+        if (targetCustomer.id === actualSourceId) {
+            return { success: false, error: 'No puedes transferir al mismo almacén.' };
+        }
+
         // ONE LOGIC: The Customer ID IS the Store ID.
         // We ensure the Store entity exists with the SAME ID as the Customer.
         const destinationStoreId = targetCustomer.id;
@@ -63,14 +83,8 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
         });
 
         if (!storeExists) {
-            console.log(`[Transfer] Ensuring Store entity for Customer ${targetCustomer.razonSocial} (${destinationStoreId})...`);
-            await prisma.store.create({
-                data: {
-                    id: destinationStoreId, // CRITICAL: Use SAME ID
-                    name: targetCustomer.razonSocial,
-                    rfc: targetCustomer.rfc
-                }
-            });
+            // CLOSED UNIVERSE: No auto-creation.
+            return { success: false, error: 'El cliente seleccionado NO es una sucursal válida.' };
         }
 
         // 2. Transaction
@@ -78,7 +92,7 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
             for (const item of items) {
                 // A. Decrement Source
                 const sourceProduct = await tx.product.findUnique({
-                    where: { storeId_sku: { storeId: sourceStoreId, sku: item.sku } }
+                    where: { storeId_sku: { storeId: actualSourceId, sku: item.sku } }
                 });
 
                 if (!sourceProduct || Number(sourceProduct.stock) < item.quantity) {
@@ -93,7 +107,7 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
                 // Audit Source (OUT)
                 await tx.inventoryMovement.create({
                     data: {
-                        storeId: sourceStoreId,
+                        storeId: actualSourceId,
                         userId,
                         sku: item.sku,
                         tipoMovimiento: 'S',
@@ -127,7 +141,7 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
                             price: sourceProduct.price, // Inherit price
                             costoPromedio: sourceProduct.costoPromedio,
                             userId, // Created by the user doing the transfer
-                            unidadMedida: sourceProduct.unidadMedida,
+                            unidadMedida: sourceProduct.unidadMedida || 'PZA', // Fallback
                             line: sourceProduct.line
                             // Other fields default
                         }

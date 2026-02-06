@@ -9,10 +9,12 @@ const prisma = new PrismaClient();
 export default async function InventoryPage({
     searchParams,
 }: {
-    searchParams: Promise<{ q?: string; page?: string; sort?: string; order?: string; sku?: string; desc?: string; line?: string; view?: string; }>;
+    searchParams: Promise<{ q?: string; page?: string; sort?: string; order?: string; sku?: string; desc?: string; line?: string; view?: string; store?: string; }>;
 }) {
     const session = await auth();
     const storeId = (session?.user as any)?.storeId;
+    const userRole = (session?.user as any)?.role;
+    const allStores = await prisma.store.findMany({ select: { id: true, name: true } });
     const store = await prisma.store.findUnique({
         where: { id: storeId },
         select: { name: true }
@@ -46,7 +48,7 @@ export default async function InventoryPage({
 
     // Base Filter (Global Search)
     const baseWhere = {
-        storeId,
+        ...(userRole === 'ADMIN' ? {} : { storeId }),
         ...(query ? {
             OR: [
                 { sku: { contains: query, mode: 'insensitive' as const } },
@@ -61,6 +63,7 @@ export default async function InventoryPage({
             params.sku ? { sku: { contains: params.sku, mode: 'insensitive' as const } } : {},
             params.desc ? { description: { contains: params.desc, mode: 'insensitive' as const } } : {},
             params.line ? { line: { contains: params.line, mode: 'insensitive' as const } } : {},
+            params.store ? { storeId: params.store } : {},
         ]
     };
 
@@ -73,6 +76,7 @@ export default async function InventoryPage({
         take: pageSize,
         skip: (page - 1) * pageSize,
         orderBy,
+        include: { store: { select: { name: true } } }
     });
 
     const totalCount = await prisma.product.count({ where });
@@ -124,15 +128,18 @@ export default async function InventoryPage({
                     retencionIsr: Number(p.retencionIsr),
                     lastSale: p.lastSale ? p.lastSale.toISOString() : null,
                     lastPurchase: p.lastPurchase ? p.lastPurchase.toISOString() : null,
+                    storeName: p.store?.name // Pass per-row store name
                     // Ensure other decimal fields are also handled if specific number type is required,
                     // otherwise JSON.stringify handles them as strings which is widely compatible
                 }))))}
+                filteredStores={allStores}
                 currentSort={sortField}
                 currentOrder={sortOrder}
                 filters={{
                     sku: params.sku,
                     desc: params.desc,
-                    line: params.line
+                    line: params.line,
+                    store: params.store
                 }}
                 searchQuery={query}
             />

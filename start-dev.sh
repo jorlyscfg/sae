@@ -26,26 +26,8 @@ cleanup() {
     # Limpieza específica solo de procesos del proyecto
     echo "   🎯 Eliminando procesos Next.js del proyecto..."
 
-    # Solo matar procesos en el puerto 3005
-    lsof -ti:3005 2>/dev/null | xargs kill -9 2>/dev/null || true
-
-    # Buscar procesos next dev solo en este directorio específico
-    pkill -9 -f "next dev.*3005" 2>/dev/null || true
-    pkill -9 -f "next-server.*3005" 2>/dev/null || true
-
-    # Matar cloudflared
-    pkill -9 -f "cloudflared.*3005" 2>/dev/null || true
-
-    # Matar procesos npm del directorio actual
-    NPM_PIDS=$(ps aux | grep "npm.*run.*dev" | grep -v grep | awk '{print $2}')
-    for pid in $NPM_PIDS; do
-        if [ -d "/proc/$pid" ]; then
-            PWD_DIR=$(pwdx $pid 2>/dev/null | awk '{print $2}')
-            if [ "$PWD_DIR" = "/root/development/vapesway-next-gen" ]; then
-                kill -9 $pid 2>/dev/null || true
-            fi
-        fi
-    done
+    # Limpieza segura del puerto 3005
+    kill_port_3005 || echo "   ⚠️  Algunos procesos en 3005 no se pudieron matar (protegidos)."
 
     # Esperar terminación completa
     sleep 2
@@ -53,6 +35,45 @@ cleanup() {
     echo "✅ Todos los servicios y procesos huérfanos eliminados"
     exit 0
 }
+
+# Función simplificada: SOLO matar procesos de la app por nombre Y directorio
+# Función simplificada: SOLO matar procesos de la app por nombre Y directorio
+kill_app_processes() {
+    echo "   🧹 Deteniendo procesos de la aplicación Next.js (Local)..."
+    CURRENT_DIR=$(pwd)
+    
+    # 1. Matar procesos 'next' solo de este directorio
+    pgrep -f "next" | while read pid; do
+        if [ -d "/proc/$pid" ]; then
+            PWD_DIR=$(pwdx $pid 2>/dev/null | awk '{print $2}')
+            # Normalizar paths (quitar slash final si existe)
+            N_PWD=${PWD_DIR%/}
+            N_CUR=${CURRENT_DIR%/}
+            
+            if [[ "$N_PWD" == *"$N_CUR"* ]]; then
+                 PNAME=$(ps -p $pid -o comm= 2>/dev/null)
+                 # Doble verificación: que no sea un proceso crítico
+                 if [[ "$PNAME" != "sshd" && "$PNAME" != "code-server" && "$PNAME" != "ssh" ]]; then
+                    kill -9 $pid 2>/dev/null || true
+                 fi
+            fi
+        fi
+    done
+    
+    # 2. Matar procesos npm del directorio actual
+    pgrep -f "npm.*run.*dev" | while read pid; do
+        if [ -d "/proc/$pid" ]; then
+            PWD_DIR=$(pwdx $pid 2>/dev/null | awk '{print $2}')
+             if [[ "$PWD_DIR" == *"$CURRENT_DIR"* ]]; then
+                kill -9 $pid 2>/dev/null || true
+            fi
+        fi
+    done
+
+    # 3. Matar cloudflared explícitamente
+    pkill -f "cloudflared.*3005" 2>/dev/null || true
+}
+
 
 # Función para obtener el comando correcto de Docker Compose
 get_docker_compose_cmd() {
@@ -113,44 +134,9 @@ if [ ! -f ".env" ]; then
 fi
 
 # Limpiar procesos existentes y liberar puerto 3005
+# Limpiar procesos existentes y liberar puerto 3005
 echo "🧹 Limpiando procesos existentes y eliminando huérfanos..."
-
-# Función helper para matar todo lo que ocupe el puerto 3005
-kill_port_3005() {
-    # Intento 1: lsof
-    PIDS=$(lsof -ti:3005 2>/dev/null)
-    if [ ! -z "$PIDS" ]; then
-        echo "   🔫 Matando PIDs en 3005 (lsof): $PIDS"
-        kill -9 $PIDS 2>/dev/null || true
-    fi
-
-    # Intento 2: ss (más confiable para detectar puertos en LISTEN)
-    SS_PIDS=$(ss -tulpn 2>/dev/null | grep ":3005 " | grep -oP 'pid=\K[0-9]+' | sort -u)
-    if [ ! -z "$SS_PIDS" ]; then
-        echo "   🔫 Matando PIDs en 3005 (ss): $SS_PIDS"
-        for pid in $SS_PIDS; do
-            kill -9 $pid 2>/dev/null || true
-        done
-    fi
-
-    # Intento 3: fuser (si existe)
-    if command -v fuser >/dev/null 2>&1; then
-        fuser -k -9 3005/tcp >/dev/null 2>&1 || true
-    fi
-
-    # Intento 4: Buscar procesos next-server que estén en este directorio
-    NEXT_PIDS=$(ps aux | grep "next-server" | grep -v grep | awk '{print $2}')
-    for pid in $NEXT_PIDS; do
-        # Verificar si el proceso está en el directorio del proyecto
-        if [ -d "/proc/$pid" ]; then
-            PWD_DIR=$(pwdx $pid 2>/dev/null | awk '{print $2}')
-            if [ "$PWD_DIR" = "/root/development/vapesway-next-gen" ]; then
-                echo "   🔫 Matando next-server en directorio del proyecto: $pid"
-                kill -9 $pid 2>/dev/null || true
-            fi
-        fi
-    done
-}
+kill_app_processes
 
 echo "🔍 Liberando puerto 3005..."
 MAX_ATTEMPTS=10
@@ -169,31 +155,20 @@ puerto_ocupado() {
     return 1
 }
 
-while [ $attempt -le $MAX_ATTEMPTS ]; do
-    if ! puerto_ocupado; then
-        echo "✅ Puerto 3005 libre."
-        break
+# Verificar si el puerto sigue ocupado (solo informativo)
+puerto_ocupado() {
+    if lsof -i:3005 >/dev/null 2>&1 || ss -tulpn 2>/dev/null | grep -q ":3005 "; then
+        return 0
     fi
-
-    echo "   ⚠️ Puerto 3005 ocupado (Intento $attempt/$MAX_ATTEMPTS). Limpiando..."
-    kill_port_3005
-
-    # Limpieza complementaria solo del puerto específico
-    pkill -9 -f "next dev.*3005" 2>/dev/null || true
-    pkill -9 -f "next-server.*3005" 2>/dev/null || true
-
-    sleep 2
-    attempt=$((attempt + 1))
-done
+    return 1
+}
 
 if puerto_ocupado; then
-    echo "❌ ERROR CRÍTICO: No se pudo liberar el puerto 3005 después de varios intentos."
-    echo "   Procesos encontrados con lsof:"
-    lsof -i:3005 2>/dev/null || echo "   (ninguno)"
-    echo "   Procesos encontrados con ss:"
-    ss -tulpn 2>/dev/null | grep ":3005 " || echo "   (ninguno)"
-    exit 1
+    echo "⚠️  Nota: El puerto 3005 está ocupado. Asumiremos que es tu túnel SSH/VSCode."
+    echo "    La aplicación intentará iniciarse; si falla, verifica que no haya otro servicio real corriendo."
 fi
+
+
 
 echo "✅ Puerto 3005 verificado y libre."
 

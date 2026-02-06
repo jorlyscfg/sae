@@ -7,39 +7,30 @@ import { LayoutDashboard, FileText, Users, BarChart3, Settings, Package, Menu, X
 
 const menuGroups = [
     {
-        title: null, // Grupo principal sin título
+        title: null,
         items: [
-            { name: 'Tablero de Control', href: '/', icon: LayoutDashboard },
-        ]
-    },
-    {
-        title: 'MÓDULO DE VENTAS',
-        items: [
-            { name: 'Facturas y Notas', href: '/facturas', icon: FileText },
-            { name: 'Clientes', href: '/clientes', icon: Users },
-        ]
-    },
-    {
-        title: 'INVENTARIOS',
-        items: [
-            { name: 'Productos y Servicios', href: '/inventario', icon: Package },
-            { name: 'Kardex al día', href: '/inventario?view=kardex', icon: BarChart3 }, // Placeholder visual
-        ]
-    },
-    {
-        title: 'UTILERÍAS',
-        items: [
-            { name: 'Bitácora', href: '/bitacora', icon: Calendar },
-            { name: 'Repositorio', href: '/repositorio', icon: Folder },
-            { name: 'Reportes', href: '/reportes', icon: BarChart3 },
-            { name: 'Configuración', href: '/configuracion', icon: Settings },
+            { name: 'Tablero', href: '/', icon: LayoutDashboard },
+            { name: 'Facturas', href: '/facturas', icon: FileText },
+            { name: 'Inventario', href: '/inventario', icon: Package },
         ]
     }
 ];
 
+const secondaryItems = [
+    { name: 'Clientes', href: '/clientes', icon: Users },
+    { name: 'Kardex', href: '/inventario?view=kardex', icon: BarChart3 },
+    { name: 'Bitácora', href: '/bitacora', icon: Calendar },
+    { name: 'Repositorio', href: '/repositorio', icon: Folder },
+    { name: 'Reportes', href: '/reportes', icon: BarChart3 },
+    { name: 'Configuración', href: '/configuracion', icon: Settings },
+];
+
+import { ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-react';
+
 export default function Sidebar() {
     const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
+    const [isMoreOpen, setIsMoreOpen] = useState(false);
 
     const toggleSidebar = () => setIsOpen(!isOpen);
     const closeSidebar = () => setIsOpen(false);
@@ -75,52 +66,74 @@ export default function Sidebar() {
                 </div>
 
                 <nav style={{ flex: 1, padding: '1rem', overflowY: 'auto' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        {menuGroups.map((group, idx) => (
-                            <div key={idx}>
-                                {group.title && (
-                                    <h3 style={{
-                                        fontSize: '0.65rem',
-                                        fontWeight: 'bold',
-                                        color: 'var(--muted)',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.05em',
-                                        marginBottom: '0.5rem',
-                                        paddingLeft: '0.5rem'
-                                    }}>
-                                        {group.title}
-                                    </h3>
-                                )}
-                                <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    {group.items.map((item) => {
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {/* Primary Items */}
+                        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            {menuGroups[0].items.map((item) => {
+                                const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                                return (
+                                    <li key={item.href}>
+                                        <Link
+                                            href={item.href}
+                                            onClick={closeSidebar}
+                                            className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-all ${isActive
+                                                ? 'bg-primary/10 text-primary font-semibold'
+                                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                                                }`}
+                                        >
+                                            <item.icon size={18} />
+                                            <span style={{ fontSize: '0.9rem' }}>{item.name}</span>
+                                        </Link>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+
+                        {/* Collapsible Section */}
+                        <div className="mt-2">
+                            <button
+                                onClick={() => setIsMoreOpen(!isMoreOpen)}
+                                className="w-full flex items-center justify-between px-3 py-2.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-md transition-all"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <MoreHorizontal size={18} />
+                                    <span style={{ fontSize: '0.9rem' }}>Más Opciones</span>
+                                </div>
+                                {isMoreOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            </button>
+
+                            {isMoreOpen && (
+                                <ul style={{
+                                    listStyle: 'none',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.25rem',
+                                    marginTop: '0.25rem',
+                                    paddingLeft: '0.5rem',
+                                    borderLeft: '1px solid var(--border)',
+                                    marginLeft: '1rem'
+                                }}>
+                                    {secondaryItems.map((item) => {
                                         const isActive = pathname === item.href;
                                         return (
                                             <li key={item.href}>
                                                 <Link
                                                     href={item.href}
                                                     onClick={closeSidebar}
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '0.75rem',
-                                                        padding: '0.6rem 0.8rem', // Más compacto tipo SAE
-                                                        borderRadius: '0.375rem',
-                                                        backgroundColor: isActive ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                                                        color: isActive ? 'var(--primary)' : 'var(--muted)', // Texto más claro para no activos
-                                                        fontWeight: isActive ? 600 : 400,
-                                                        fontSize: '0.85rem', // Letra un poco más pequeña
-                                                        transition: 'all 0.15s',
-                                                    }}
+                                                    className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all ${isActive
+                                                        ? 'text-primary font-medium'
+                                                        : 'text-slate-500 hover:text-slate-300'
+                                                        }`}
                                                 >
-                                                    <item.icon size={18} />
-                                                    {item.name}
+                                                    <item.icon size={16} />
+                                                    <span style={{ fontSize: '0.85rem' }}>{item.name}</span>
                                                 </Link>
                                             </li>
                                         );
                                     })}
                                 </ul>
-                            </div>
-                        ))}
+                            )}
+                        </div>
                     </div>
                 </nav>
 

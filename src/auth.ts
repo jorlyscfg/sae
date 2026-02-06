@@ -56,6 +56,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     email: user.email,
                     name: user.name,
                     storeId: user.storeId,
+                    role: user.role,
                 };
             },
         }),
@@ -71,7 +72,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 // Validación estricta: Verificar si el usuario aún existe en DB
                 const dbUser = await prisma.user.findUnique({
                     where: { id: token.id as string },
-                    select: { id: true, storeId: true }
+                    select: { id: true, storeId: true, role: true }
                 });
 
                 if (!dbUser) {
@@ -80,6 +81,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                 (session.user as any).id = token.id as string;
                 (session.user as any).storeId = dbUser.storeId;
+                (session.user as any).role = dbUser.role;
             }
             return session;
         },

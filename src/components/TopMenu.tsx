@@ -6,45 +6,41 @@ import { useSession, signOut } from 'next-auth/react';
 import { LayoutDashboard, FileText, Users, BarChart3, Settings, Package, Calendar, Folder, LogOut, Wallet } from 'lucide-react';
 
 const menuStructure = [
-    {
-        label: 'Tablero',
-        href: '/',
-        icon: LayoutDashboard,
-        items: []
-    },
-    {
-        label: 'Ventas',
-        icon: FileText,
-        items: [
-            { name: 'Facturas', href: '/facturas', icon: FileText },
-            { name: 'Cotizaciones', href: '/cotizaciones', icon: FileText },
-            { name: 'Clientes', href: '/clientes', icon: Users },
-            { name: 'Cobranza', href: '/cobranza', icon: Wallet },
-        ]
-    },
-    {
-        label: 'Inventarios',
-        icon: Package,
-        items: [
-            { name: 'Inventario', href: '/inventario', icon: Package },
-            { name: 'Kardex', href: '/inventario?view=kardex', icon: BarChart3 },
-        ]
-    },
-    {
-        label: 'Utilerías',
-        icon: Settings,
-        items: [
-            { name: 'Bitácora', href: '/bitacora', icon: Calendar },
-            { name: 'Repositorio', href: '/repositorio', icon: Folder },
-            { name: 'Reportes', href: '/reportes', icon: BarChart3 },
-            { name: 'Configuración', href: '/configuracion', icon: Settings },
-        ]
-    }
+    { label: 'Tablero', href: '/', icon: LayoutDashboard, items: [] },
+    { label: 'Facturas', href: '/facturas', icon: FileText, items: [] },
+    { label: 'Inventario', href: '/inventario', icon: Package, items: [] },
 ];
+
+const moreItems = [
+    { name: 'Cotizaciones', href: '/cotizaciones', icon: FileText },
+    { name: 'Clientes', href: '/clientes', icon: Users },
+    { name: 'Cobranza', href: '/cobranza', icon: Wallet },
+    { name: 'Kardex', href: '/inventario?view=kardex', icon: BarChart3 },
+    { name: 'Bitácora', href: '/bitacora', icon: Calendar },
+    { name: 'Repositorio', href: '/repositorio', icon: Folder },
+    { name: 'Reportes', href: '/reportes', icon: BarChart3 },
+    { name: 'Configuración', href: '/configuracion', icon: Settings },
+];
+
+import { MoreHorizontal, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function TopMenu() {
     const pathname = usePathname();
     const { data: session } = useSession();
+    const [isMoreOpen, setIsMoreOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsMoreOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     if (pathname === '/login') return null;
 
@@ -88,61 +84,75 @@ export default function TopMenu() {
             </div>
 
             {/* Row 2: Main Ribbon/Toolbar (Ultra Compact 48px) */}
-            <nav className="h-[48px] flex items-center px-1 bg-slate-900 overflow-x-auto no-scrollbar select-none">
+            <nav className="h-[48px] flex items-center px-1 bg-slate-900 select-none relative z-40">
                 <div className="flex items-center gap-0.5 h-full min-w-max">
-                    {menuStructure.map((group, idx) => {
-                        const isMainActive = group.href === pathname || group.items.some(i => i.href === pathname);
-
+                    {/* Primary Items */}
+                    {menuStructure.map((item) => {
+                        const isActive = pathname === item.href;
                         return (
-                            <div key={idx} className="flex items-center h-full py-1">
-                                {/* Separator */}
-                                {idx > 0 && <div className="h-5 w-px bg-slate-800 mx-1" />}
-
-                                {/* If it has no items, it's a direct button */}
-                                {group.items.length === 0 ? (
-                                    <Link
-                                        href={group.href || '#'}
-                                        className={`
-                                            flex flex-col items-center justify-center h-full min-w-[56px] px-1 rounded-[3px] transition-all duration-150 group relative
-                                            ${isMainActive
-                                                ? 'bg-blue-600 shadow-sm text-white ring-1 ring-blue-500/50'
-                                                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 active:scale-95'}
-                                        `}
-                                    >
-                                        <group.icon size={16} strokeWidth={isMainActive ? 2 : 1.5} />
-                                        <span className={`text-[10px] font-medium uppercase tracking-tight whitespace-nowrap mt-0.5 ${isMainActive ? 'font-semibold' : ''}`}>{group.label}</span>
-                                    </Link>
-                                ) : (
-                                    <div className="flex items-center gap-0.5">
-                                        {group.items.map((subItem) => {
-                                            const isActive = pathname === subItem.href || (pathname.startsWith(subItem.href) && subItem.href !== '/');
-                                            return (
-                                                <Link
-                                                    key={subItem.href}
-                                                    href={subItem.href}
-                                                    className={`
-                                                        flex flex-col items-center justify-center h-full min-w-[64px] px-1 rounded-[3px] transition-all duration-150 relative group overflow-hidden
-                                                        ${isActive
-                                                            ? 'bg-blue-600 shadow-md text-white ring-1 ring-blue-500/50 transform scale-[1.02]'
-                                                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 active:scale-95'}
-                                                    `}
-                                                    title={subItem.name}
-                                                >
-                                                    {/* Shine Effect on Active */}
-                                                    {isActive && <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-50 pointer-events-none"></div>}
-
-                                                    <subItem.icon size={16} strokeWidth={isActive ? 2 : 1.5} className="relative z-10" />
-                                                    <span className={`text-[9px] font-medium leading-none text-center whitespace-nowrap relative z-10 mt-0.5 ${isActive ? 'font-semibold' : ''}`}>
-                                                        {subItem.name}
-                                                    </span>
-                                                </Link>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={`nav-item ${isActive ? 'active' : 'text-slate-400'}`}
+                            >
+                                <item.icon size={18} strokeWidth={isActive ? 2 : 1.5} />
+                                <span className={`text-[10px] font-medium uppercase tracking-tight whitespace-nowrap mt-1 ${isActive ? 'font-semibold' : ''}`}>
+                                    {item.label}
+                                </span>
+                            </Link>
                         );
                     })}
+
+                    <div className="h-6 w-px bg-slate-800 mx-0"></div>
+
+                    {/* More Options Dropdown */}
+                    <div className="relative h-full flex items-center" ref={dropdownRef}>
+                        <button
+                            onClick={() => setIsMoreOpen(!isMoreOpen)}
+                            className={`nav-item !bg-transparent !border-none !shadow-none !outline-none ${isMoreOpen || moreItems.some(i => i.href === pathname) ? 'active' : 'text-slate-400'}`}
+                            style={{ backgroundColor: 'transparent', border: 'none' }}
+                        >
+                            <div className="relative">
+                                <ChevronDown size={18} strokeWidth={isMoreOpen || moreItems.some(i => i.href === pathname) ? 2 : 1.5} />
+                                {moreItems.some(i => i.href === pathname) && (
+                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full shadow-sm ring-1 ring-slate-900" />
+                                )}
+                            </div>
+                            <span className={`text-[10px] font-medium uppercase tracking-tight whitespace-nowrap mt-1 ${isMoreOpen || moreItems.some(i => i.href === pathname) ? 'font-semibold' : ''}`}>
+                                Más
+                            </span>
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {isMoreOpen && (
+                            <div
+                                className="absolute right-0 w-[220px] bg-slate-900 border border-slate-700 rounded-md shadow-2xl py-1 z-50 origin-top-right ring-1 ring-black/50"
+                                style={{ top: '100%', marginTop: '4px' }}
+                            >
+                                <div className="grid grid-cols-1 gap-0.5 p-1">
+                                    {moreItems.map((item) => {
+                                        const isActive = pathname === item.href;
+                                        return (
+                                            <Link
+                                                key={item.href}
+                                                href={item.href}
+                                                onClick={() => setIsMoreOpen(false)}
+                                                className={`
+                                                    flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors
+                                                    ${isActive
+                                                        ? 'bg-blue-600/10 text-blue-400'
+                                                        : 'text-slate-400 hover:bg-slate-700 hover:text-white'}
+                                                `}
+                                            >
+                                                <item.icon size={16} strokeWidth={1.5} />
+                                                {item.name}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="flex-1"></div>

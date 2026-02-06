@@ -18,6 +18,8 @@ interface Product {
     price: number | string;
     lastSale: string | null;
     lastPurchase: string | null;
+    storeName?: string;
+    storeId?: string;
 }
 
 interface InventoryClientProps {
@@ -28,12 +30,14 @@ interface InventoryClientProps {
         sku?: string;
         desc?: string;
         line?: string;
+        store?: string;
     };
     searchQuery: string;
     storeName?: string;
+    filteredStores?: { id: string; name: string }[];
 }
 
-export default function InventoryClient({ products, currentSort, currentOrder, filters, searchQuery, storeName }: InventoryClientProps) {
+export default function InventoryClient({ products, currentSort, currentOrder, filters, searchQuery, storeName, filteredStores = [] }: InventoryClientProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [productToEdit, setProductToEdit] = useState<Product | null>(null);
@@ -158,6 +162,19 @@ export default function InventoryClient({ products, currentSort, currentOrder, f
                                         placeholder="Filtro..."
                                     />
                                 </th>
+                                <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 500, borderRight: '1px solid var(--border)' }}>
+                                    TIENDA
+                                    <select
+                                        value={filters.store || ''}
+                                        onChange={(e) => handleFilter('store', e.target.value)}
+                                        className="input-filter-header mt-1 w-full"
+                                    >
+                                        <option value="">Todas</option>
+                                        {filteredStores.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </th>
                                 <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 500, borderRight: '1px solid var(--border)', width: '40%' }}>
                                     <div onClick={() => handleSort('description')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '0.25rem' }}>
                                         DESCRIPCIÓN {renderSortIcon('description')}
@@ -194,6 +211,9 @@ export default function InventoryClient({ products, currentSort, currentOrder, f
                                         <Link href={`/inventario/${prod.id}`} className="font-mono text-blue-400 hover:text-blue-300 font-semibold text-xs">
                                             {prod.sku}
                                         </Link>
+                                    </td>
+                                    <td className="data-table-td" style={{ color: '#94a3b8' }}>
+                                        {prod.storeName || '-'}
                                     </td>
                                     <td className="data-table-td" style={{ color: '#e2e8f0' }}>
                                         {prod.description}
@@ -258,8 +278,8 @@ export default function InventoryClient({ products, currentSort, currentOrder, f
                 isOpen={isTransferModalOpen}
                 onClose={() => setIsTransferModalOpen(false)}
                 productToTransfer={productToTransfer}
-                originName={storeName}
+                originName={productToTransfer?.storeName || storeName}
             />
-        </div>
+        </div >
     );
 }

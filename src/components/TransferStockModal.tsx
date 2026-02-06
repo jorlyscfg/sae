@@ -10,6 +10,7 @@ interface Product {
     sku: string;
     description: string;
     stock: number | string;
+    storeId?: string;
 }
 
 interface TransferStockModalProps {
@@ -44,7 +45,9 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer,
     const loadBranches = async () => {
         setIsLoading(true);
         try {
-            const data = await getBranchCustomers();
+            // Pass the PRODUCT'S store ID to exclude it from the list
+            const sourceId = productToTransfer?.storeId;
+            const data = await getBranchCustomers(sourceId);
             setBranches(data);
         } catch (err) {
             console.error(err);
@@ -69,7 +72,11 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer,
                 cost: 0 // Backend handles cost
             }];
 
-            const result = await transferStock(selectedBranchId, items);
+            const result = await transferStock(
+                selectedBranchId,
+                items,
+                productToTransfer.storeId // Pass explicit source
+            );
 
             if (result.success) {
                 onClose();
@@ -120,7 +127,7 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer,
                     <div>
                         <span className="text-xs font-semibold text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded border border-purple-400/20">DESTINO</span>
                         <div className="mt-2">
-                            <label className="block text-sm text-slate-400 mb-1">Sucursal Destino (Cliente)</label>
+                            <label className="block text-sm text-slate-400 mb-1">Sucursal Destino</label>
                             {isLoading ? (
                                 <div className="text-sm text-muted animate-pulse">Cargando sucursales...</div>
                             ) : branches.length > 0 ? (
@@ -130,7 +137,7 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer,
                                     onChange={(e) => setSelectedBranchId(e.target.value)}
                                     required
                                 >
-                                    <option value="">-- Seleccionar --</option>
+                                    <option value="">-- Seleccionar Sucursal --</option>
                                     {branches.map(b => (
                                         <option key={b.id} value={b.id}>
                                             {b.razonSocial}
@@ -139,7 +146,7 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer,
                                 </select>
                             ) : (
                                 <div className="text-sm text-muted p-2 rounded border border-dashed border-slate-700">
-                                    No hay clientes disponibles.
+                                    No hay sucursales disponibles.
                                 </div>
                             )}
                         </div>
