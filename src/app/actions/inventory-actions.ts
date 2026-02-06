@@ -12,7 +12,7 @@ interface TransferItem {
     cost: number;
 }
 
-export async function getBranchCustomers(excludeStoreId?: string) {
+export async function getTransferTargets(excludeStoreId?: string) {
     const session = await auth();
     const sessionStoreId = (session?.user as any)?.storeId;
     if (!sessionStoreId) return [];
@@ -20,34 +20,25 @@ export async function getBranchCustomers(excludeStoreId?: string) {
     // Use explicit exclude ID or fallback to session
     const finalExcludeId = excludeStoreId || sessionStoreId;
 
-    // ENFORCE CLOSED UNIVERSE: Only Customers that are ALSO Stores.
-    // We get all Store IDs first to filter the customer list efficiently.
-    const stores = await prisma.store.findMany({ select: { id: true } });
-    const storeIds = stores.map(s => s.id);
-
-    return await prisma.customer.findMany({
+    // UNIVERSAL: Get all stores except the current one
+    return await prisma.store.findMany({
         where: {
-            storeId: sessionStoreId, // Customers of the current store
-            id: {
-                in: storeIds, // MUST be a Store already
-                not: finalExcludeId // Exclude self
-            }
+            id: { not: finalExcludeId }
         },
         select: {
             id: true,
-            razonSocial: true,
+            name: true,
         },
-        orderBy: { razonSocial: 'asc' }
+        orderBy: { name: 'asc' }
     });
 }
 
-export async function transferStock(targetCustomerId: string, items: TransferItem[], sourceStoreId?: string) {
+export async function transferStock(targetStoreId: string, items: TransferItem[], sourceStoreId?: string) {
     const session = await auth();
     const sessionStoreId = (session?.user as any)?.storeId;
     const userId = session?.user?.id;
 
     // Use passed source (if Admin/Valid) or session default
-    // Ideally verify user has access to sourceStoreId here
     const actualSourceId = sourceStoreId || sessionStoreId;
 
     if (!actualSourceId || !userId) {
@@ -60,32 +51,22 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
 
     try {
         // 1. Validate Target
-        const targetCustomer = await prisma.customer.findUnique({
-            where: { id: targetCustomerId },
-            select: { id: true, razonSocial: true, rfc: true }
+        // Verify target store exists
+        const destinationStore = await prisma.store.findUnique({
+            where: { id: targetStoreId },
+            select: { id: true, name: true }
         });
 
-        if (!targetCustomer) {
-            return { success: false, error: 'Cliente destino no encontrado' };
+        if (!destinationStore) {
+            return { success: false, error: 'Almacén destino no encontrado' };
         }
 
         // Prevent Loop (Source == Destination)
-        if (targetCustomer.id === actualSourceId) {
+        if (targetStoreId === actualSourceId) {
             return { success: false, error: 'No puedes transferir al mismo almacén.' };
         }
 
-        // ONE LOGIC: The Customer ID IS the Store ID.
-        // We ensure the Store entity exists with the SAME ID as the Customer.
-        const destinationStoreId = targetCustomer.id;
-
-        const storeExists = await prisma.store.findUnique({
-            where: { id: destinationStoreId }
-        });
-
-        if (!storeExists) {
-            // CLOSED UNIVERSE: No auto-creation.
-            return { success: false, error: 'El cliente seleccionado NO es una sucursal válida.' };
-        }
+        const destinationId = destinationStore.id;
 
         // 2. Transaction
         await prisma.$transaction(async (tx) => {
@@ -114,36 +95,33 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
                         concepto: 'TRASPASO_SALIDA',
                         cantidad: item.quantity,
                         costo: sourceProduct.costoPromedio,
-                        referencia: `Traspaso a ${targetCustomer.razonSocial}`
+                        referencia: `Traspaso a ${destinationStore.name}`
                     }
                 });
 
                 // B. Increment Destination (Upsert)
-                // We verify if product exists in destination store
                 const destProduct = await tx.product.findUnique({
-                    where: { storeId_sku: { storeId: destinationStoreId, sku: item.sku } }
+                    where: { storeId_sku: { storeId: destinationId, sku: item.sku } }
                 });
 
                 if (destProduct) {
                     await tx.product.update({
                         where: { id: destProduct.id },
-                        data: { stock: { increment: item.quantity } } // We don't overwrite price/cost, just add stock
+                        data: { stock: { increment: item.quantity } }
                     });
                 } else {
                     // Create if not exists (Clone basic info)
-                    // Note: We use the source product details for creation
                     await tx.product.create({
                         data: {
-                            storeId: destinationStoreId,
+                            storeId: destinationId,
                             sku: item.sku,
                             description: item.description,
                             stock: item.quantity,
-                            price: sourceProduct.price, // Inherit price
+                            price: sourceProduct.price,
                             costoPromedio: sourceProduct.costoPromedio,
-                            userId, // Created by the user doing the transfer
-                            unidadMedida: sourceProduct.unidadMedida || 'PZA', // Fallback
+                            userId,
+                            unidadMedida: sourceProduct.unidadMedida || 'PZA',
                             line: sourceProduct.line
-                            // Other fields default
                         }
                     });
                 }
@@ -151,14 +129,14 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
                 // Audit Destination (IN)
                 await tx.inventoryMovement.create({
                     data: {
-                        storeId: destinationStoreId,
+                        storeId: destinationId,
                         userId,
                         sku: item.sku,
                         tipoMovimiento: 'E',
                         concepto: 'TRASPASO_ENTRADA',
                         cantidad: item.quantity,
                         costo: sourceProduct.costoPromedio,
-                        referencia: `Recibido de Central`
+                        referencia: `Recibido de Origen`
                     }
                 });
             }

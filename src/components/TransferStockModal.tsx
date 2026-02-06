@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Modal from './Modal';
-import { getBranchCustomers, transferStock } from '@/app/actions/inventory-actions';
+import { getTransferTargets, transferStock } from '@/app/actions/inventory-actions';
 import { Truck, ArrowRight, AlertTriangle } from 'lucide-react';
 
 interface Product {
@@ -22,7 +22,7 @@ interface TransferStockModalProps {
 
 interface Branch {
     id: string;
-    razonSocial: string;
+    name: string;
 }
 
 export default function TransferStockModal({ isOpen, onClose, productToTransfer, originName = 'Tienda Central' }: TransferStockModalProps) {
@@ -47,11 +47,11 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer,
         try {
             // Pass the PRODUCT'S store ID to exclude it from the list
             const sourceId = productToTransfer?.storeId;
-            const data = await getBranchCustomers(sourceId);
+            const data = await getTransferTargets(sourceId);
             setBranches(data);
         } catch (err) {
             console.error(err);
-            setError('Error al cargar sucursales');
+            setError('Error al cargar almacenes');
         } finally {
             setIsLoading(false);
         }
@@ -127,9 +127,9 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer,
                     <div>
                         <span className="text-xs font-semibold text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded border border-purple-400/20">DESTINO</span>
                         <div className="mt-2">
-                            <label className="block text-sm text-slate-400 mb-1">Sucursal Destino</label>
+                            <label className="block text-sm text-slate-400 mb-1">Almacén Destino</label>
                             {isLoading ? (
-                                <div className="text-sm text-muted animate-pulse">Cargando sucursales...</div>
+                                <div className="text-sm text-muted animate-pulse">Cargando almacenes...</div>
                             ) : branches.length > 0 ? (
                                 <select
                                     className="input w-full bg-slate-900 border-slate-600"
@@ -137,16 +137,16 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer,
                                     onChange={(e) => setSelectedBranchId(e.target.value)}
                                     required
                                 >
-                                    <option value="">-- Seleccionar Sucursal --</option>
+                                    <option value="">-- Seleccionar Almacén --</option>
                                     {branches.map(b => (
                                         <option key={b.id} value={b.id}>
-                                            {b.razonSocial}
+                                            {b.name}
                                         </option>
                                     ))}
                                 </select>
                             ) : (
                                 <div className="text-sm text-muted p-2 rounded border border-dashed border-slate-700">
-                                    No hay sucursales disponibles.
+                                    No hay almacenes disponibles.
                                 </div>
                             )}
                         </div>

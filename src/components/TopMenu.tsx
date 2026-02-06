@@ -107,21 +107,20 @@ export default function TopMenu() {
 
                     {/* More Options Dropdown */}
                     <div className="relative h-full flex items-center" ref={dropdownRef}>
-                        <button
+                        <div
+                            role="button"
+                            tabIndex={0}
                             onClick={() => setIsMoreOpen(!isMoreOpen)}
-                            className={`nav-item !bg-transparent !border-none !shadow-none !outline-none ${isMoreOpen || moreItems.some(i => i.href === pathname) ? 'active' : 'text-slate-400'}`}
-                            style={{ backgroundColor: 'transparent', border: 'none' }}
+                            className={`nav-item ${isMoreOpen || moreItems.some(i => i.href === pathname) ? 'active' : 'text-slate-400'}`}
                         >
-                            <div className="relative">
-                                <ChevronDown size={18} strokeWidth={isMoreOpen || moreItems.some(i => i.href === pathname) ? 2 : 1.5} />
-                                {moreItems.some(i => i.href === pathname) && (
-                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full shadow-sm ring-1 ring-slate-900" />
-                                )}
-                            </div>
+                            <ChevronDown size={18} strokeWidth={isMoreOpen || moreItems.some(i => i.href === pathname) ? 2 : 1.5} className="mb-0" />
                             <span className={`text-[10px] font-medium uppercase tracking-tight whitespace-nowrap mt-1 ${isMoreOpen || moreItems.some(i => i.href === pathname) ? 'font-semibold' : ''}`}>
                                 Más
                             </span>
-                        </button>
+                            {moreItems.some(i => i.href === pathname) && (
+                                <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full shadow-sm ring-1 ring-slate-900" />
+                            )}
+                        </div>
 
                         {/* Dropdown Menu */}
                         {isMoreOpen && (

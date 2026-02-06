@@ -12,7 +12,7 @@ async function main() {
         update: {},
         create: {
             id: 'default-store',
-            name: 'Tienda Principal',
+            name: 'SIN TIENDA',
             rfc: 'XAXX010101000'
         }
     });
