@@ -107,7 +107,7 @@ export default async function InventoryPage({
     return (
         <div className="container" style={{ maxWidth: '100%' }}>
             <InventoryClient
-                products={products.map(p => ({
+                products={JSON.parse(JSON.stringify(products.map(p => ({
                     ...p,
                     stock: Number(p.stock),
                     price: Number(p.price),
@@ -117,8 +117,10 @@ export default async function InventoryPage({
                     retencionIva: Number(p.retencionIva),
                     retencionIsr: Number(p.retencionIsr),
                     lastSale: p.lastSale ? p.lastSale.toISOString() : null,
-                    lastPurchase: p.lastPurchase ? p.lastPurchase.toISOString() : null
-                }))}
+                    lastPurchase: p.lastPurchase ? p.lastPurchase.toISOString() : null,
+                    // Ensure other decimal fields are also handled if specific number type is required,
+                    // otherwise JSON.stringify handles them as strings which is widely compatible
+                }))))}
                 currentSort={sortField}
                 currentOrder={sortOrder}
                 filters={{
