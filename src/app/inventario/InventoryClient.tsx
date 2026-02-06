@@ -30,9 +30,10 @@ interface InventoryClientProps {
         line?: string;
     };
     searchQuery: string;
+    storeName?: string;
 }
 
-export default function InventoryClient({ products, currentSort, currentOrder, filters, searchQuery }: InventoryClientProps) {
+export default function InventoryClient({ products, currentSort, currentOrder, filters, searchQuery, storeName }: InventoryClientProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [productToEdit, setProductToEdit] = useState<Product | null>(null);
@@ -257,6 +258,7 @@ export default function InventoryClient({ products, currentSort, currentOrder, f
                 isOpen={isTransferModalOpen}
                 onClose={() => setIsTransferModalOpen(false)}
                 productToTransfer={productToTransfer}
+                originName={storeName}
             />
         </div>
     );

@@ -13,6 +13,11 @@ export default async function InventoryPage({
 }) {
     const session = await auth();
     const storeId = (session?.user as any)?.storeId;
+    const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { name: true }
+    });
+    const storeName = store?.name || 'Tienda';
 
     if (!storeId) {
         return (
@@ -107,6 +112,7 @@ export default async function InventoryPage({
     return (
         <div className="container" style={{ maxWidth: '100%' }}>
             <InventoryClient
+                storeName={storeName}
                 products={JSON.parse(JSON.stringify(products.map(p => ({
                     ...p,
                     stock: Number(p.stock),

@@ -16,6 +16,7 @@ interface TransferStockModalProps {
     isOpen: boolean;
     onClose: () => void;
     productToTransfer?: Product | null;
+    originName?: string;
 }
 
 interface Branch {
@@ -23,7 +24,7 @@ interface Branch {
     razonSocial: string;
 }
 
-export default function TransferStockModal({ isOpen, onClose, productToTransfer }: TransferStockModalProps) {
+export default function TransferStockModal({ isOpen, onClose, productToTransfer, originName = 'Tienda Central' }: TransferStockModalProps) {
     const [branches, setBranches] = useState<Branch[]>([]);
     const [selectedBranchId, setSelectedBranchId] = useState('');
     const [quantity, setQuantity] = useState(1);
@@ -104,7 +105,7 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer 
                     <div className="flex justify-between items-start">
                         <div>
                             <span className="text-xs font-semibold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded border border-blue-400/20">ORIGEN</span>
-                            <h4 className="text-base font-bold mt-1 text-slate-200">Tienda Central</h4>
+                            <h4 className="text-base font-bold mt-1 text-slate-200">{originName}</h4>
                         </div>
                         <div className="text-right">
                             <div className="text-xs text-slate-400">Stock Actual</div>
