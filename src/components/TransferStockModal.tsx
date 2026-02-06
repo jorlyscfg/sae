@@ -119,7 +119,7 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer 
                     <div>
                         <span className="text-xs font-semibold text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded border border-purple-400/20">DESTINO</span>
                         <div className="mt-2">
-                            <label className="block text-sm text-slate-400 mb-1">Seleccionar Sucursal (Cliente)</label>
+                            <label className="block text-sm text-slate-400 mb-1">Sucursal Destino (Cliente)</label>
                             {isLoading ? (
                                 <div className="text-sm text-muted animate-pulse">Cargando sucursales...</div>
                             ) : branches.length > 0 ? (
@@ -137,8 +137,8 @@ export default function TransferStockModal({ isOpen, onClose, productToTransfer 
                                     ))}
                                 </select>
                             ) : (
-                                <div className="text-sm text-yellow-500 bg-yellow-500/10 p-2 rounded">
-                                    No hay clientes marcados como Sucursal. Ve a Clientes y promueve uno primero.
+                                <div className="text-sm text-muted p-2 rounded border border-dashed border-slate-700">
+                                    No hay clientes disponibles.
                                 </div>
                             )}
                         </div>

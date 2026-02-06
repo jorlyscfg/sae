@@ -20,13 +20,14 @@ export async function getBranchCustomers() {
     return await prisma.customer.findMany({
         where: {
             storeId,
-            isBranch: true,
-            linkedStoreId: { not: null }
+            // Allow selecting ANY customer, not just existing branches
+            // isBranch: true, 
         },
         select: {
             id: true,
             razonSocial: true,
-            linkedStoreId: true
+            linkedStoreId: true,
+            isBranch: true // Select to show badge in UI if needed
         },
         orderBy: { razonSocial: 'asc' }
     });
@@ -52,11 +53,35 @@ export async function transferStock(targetCustomerId: string, items: TransferIte
             select: { isBranch: true, linkedStoreId: true, razonSocial: true }
         });
 
-        if (!targetCustomer || !targetCustomer.isBranch || !targetCustomer.linkedStoreId) {
-            return { success: false, error: 'El cliente destino no es una sucursal válida' };
+        if (!targetCustomer) {
+            return { success: false, error: 'Cliente destino no encontrado' };
         }
 
-        const destinationStoreId = targetCustomer.linkedStoreId;
+        let destinationStoreId = targetCustomer.linkedStoreId;
+
+        // Auto-Promote Logic: If customer is not a branch yet, make it one!
+        if (!destinationStoreId) {
+            console.log(`[Transfer] Auto-promoting customer ${targetCustomer.razonSocial} to Branch...`);
+
+            // 1. Create new Store
+            const newStore = await prisma.store.create({
+                data: {
+                    name: `Sucursal - ${targetCustomer.razonSocial}`,
+                    // Inherit address if available, or empty
+                }
+            });
+
+            // 2. Link Customer to Store
+            await prisma.customer.update({
+                where: { id: targetCustomerId },
+                data: {
+                    isBranch: true,
+                    linkedStoreId: newStore.id
+                }
+            });
+
+            destinationStoreId = newStore.id;
+        }
 
         // 2. Transaction
         await prisma.$transaction(async (tx) => {
