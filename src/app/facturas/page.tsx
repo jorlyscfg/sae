@@ -92,18 +92,17 @@ export default async function FacturasPage({
     return (
         <div className="container" style={{ maxWidth: '100%' }}>
             <InvoicesClient
-                invoices={invoices.map(inv => ({
+                invoices={JSON.parse(JSON.stringify(invoices.map(inv => ({
                     ...inv,
-                    total: inv.total.toString(),
+                    total: inv.total.toString(), // Keep string mapping for explicit props if needed, but JSON.parse acts as safety net for nested objects like customer
                     subtotal: inv.subtotal.toString(),
                     itemsCount: inv._count.items,
                     isFiscal: inv.isFiscal,
                     status: inv.status,
-                    // Format date on server to avoid hydration mismatch
                     fechaEmisionFormatted: new Date(inv.fechaEmision).toLocaleDateString('es-MX', {
                         day: '2-digit', month: 'short', year: 'numeric'
                     })
-                }))}
+                }))))}
                 customers={customers}
                 filters={{
                     folio: params.folio,

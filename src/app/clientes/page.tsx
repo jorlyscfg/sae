@@ -53,9 +53,11 @@ export default async function ClientesPage({
     const totalCount = await prisma.customer.count({ where });
     const totalPages = Math.ceil(totalCount / pageSize);
 
+    const serializedCustomers = JSON.parse(JSON.stringify(customers));
+
     return (
         <div className="container" style={{ maxWidth: '100%' }}>
-            <CustomersClient customers={customers} searchQuery={query} />
+            <CustomersClient customers={serializedCustomers} searchQuery={query} />
 
             {/* Paginación */}
             <div className="flex justify-between items-center" style={{ marginTop: '1.5rem' }}>
